@@ -3,9 +3,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, List, FileText, Upload, Search, ArrowLeft } from 'lucide-react';
 import './App.css'; // 通常のCSSファイルを使用
 
+/* global gapi */
+
 // 環境変数からAPIキーとクライアントIDを取得
 const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
+// デバッグ用：環境変数の確認
+console.log('環境変数の確認:');
+console.log('API Key exists:', !!GOOGLE_API_KEY);
+console.log('Client ID exists:', !!GOOGLE_CLIENT_ID);
 
 // Google Drive APIのスコープ
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
@@ -19,36 +26,60 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stream, setStream] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [tokenClient, setTokenClient] = useState(null);
   const videoRef = useRef(null);
 
-  // Google APIのロード
+  // Google APIの初期化
   useEffect(() => {
-    const loadGoogleApi = async () => {
+    const initializeGoogleApi = async () => {
       try {
-        // Google API Client Libraryをロード
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://apis.google.com/js/api.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
+        console.log('Google APIの初期化を開始...');
+        
+        // Google API Client Libraryのロード
+        await new Promise((resolve) => {
+          if (window.gapi) {
+            resolve();
+          } else {
+            const script = document.createElement('script');
+            script.src = 'https://apis.google.com/js/api.js';
+            script.onload = resolve;
+            document.body.appendChild(script);
+          }
         });
 
         // Google APIの初期化
-        await new Promise((resolve) => gapi.load('client:auth2', resolve));
-        await gapi.client.init({
-          apiKey: GOOGLE_API_KEY,
-          clientId: GOOGLE_CLIENT_ID,
-          scope: SCOPES,
-        });
+        await gapi.load('client', async () => {
+          try {
+            await gapi.client.init({
+              apiKey: GOOGLE_API_KEY,
+              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+            });
 
-        setIsGoogleApiLoaded(true);
+            // Token Clientの初期化
+            const client = google.accounts.oauth2.initTokenClient({
+              client_id: GOOGLE_CLIENT_ID,
+              scope: SCOPES,
+              callback: (tokenResponse) => {
+                if (tokenResponse && tokenResponse.access_token) {
+                  console.log('認証成功');
+                  setIsGoogleApiLoaded(true);
+                }
+              },
+            });
+
+            setTokenClient(client);
+            setIsGoogleApiLoaded(true);
+            console.log('Google APIの初期化が完了しました');
+          } catch (error) {
+            console.error('Google APIの初期化に失敗しました:', error);
+          }
+        });
       } catch (error) {
-        console.error('Google APIのロードに失敗しました:', error);
+        console.error('Google APIの初期化に失敗しました:', error);
       }
     };
 
-    loadGoogleApi();
+    initializeGoogleApi();
   }, []);
 
   // カメラストリームのクリーンアップ
@@ -65,10 +96,22 @@ function App() {
     try {
       setIsUploading(true);
 
-      // 認証状態を確認
-      if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
-        await gapi.auth2.getAuthInstance().signIn();
+      // トークンの取得
+      if (!tokenClient) {
+        throw new Error('認証クライアントが初期化されていません');
       }
+
+      // トークンの取得を要求
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (response) => {
+          if (response.error) {
+            reject(response.error);
+          } else {
+            resolve(response);
+          }
+        };
+        tokenClient.requestAccessToken();
+      });
 
       // 画像データをBlobに変換
       const byteString = atob(imageData.split(',')[1]);
@@ -87,7 +130,7 @@ function App() {
       const metadata = {
         name: fileName,
         mimeType: mimeString,
-        parents: ['root'], // ルートフォルダに保存
+        parents: ['root'],
       };
 
       // マルチパートリクエストを作成
@@ -99,7 +142,7 @@ function App() {
       const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().access_token}`,
+          Authorization: `Bearer ${gapi.auth.getToken().access_token}`,
         },
         body: form,
       });
@@ -109,7 +152,7 @@ function App() {
       }
 
       const result = await response.json();
-      return result.id; // アップロードされたファイルのIDを返す
+      return result.id;
     } catch (error) {
       console.error('Google Driveへのアップロードに失敗しました:', error);
       throw error;
