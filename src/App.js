@@ -82,11 +82,14 @@ function App() {
     
     try {
       setIsLoading(true);
+      console.log('明細一覧の取得を開始...');
       
       if (!isAuthenticated) {
+        console.log('認証が必要です...');
         await requestToken();
       }
 
+      console.log('Drive APIにアクセス...');
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
         q: "name contains '給与明細' and mimeType contains 'image/'",
@@ -94,10 +97,10 @@ function App() {
         orderBy: 'createdTime desc'
       });
 
+      console.log('ファイル一覧を取得:', response.result.files.length, '件');
       const files = response.result.files;
       const payslipsData = await Promise.all(
         files.map(async (file) => {
-          // ファイルのダウンロードURLを取得
           const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
           
           return {
@@ -111,6 +114,7 @@ function App() {
         })
       );
 
+      console.log('明細一覧を設定:', payslipsData.length, '件');
       setPayslips(payslipsData);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
@@ -148,6 +152,8 @@ function App() {
               discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
             });
 
+            console.log('Drive APIの初期化が完了');
+
             // Token Clientの初期化
             const client = google.accounts.oauth2.initTokenClient({
               client_id: GOOGLE_CLIENT_ID,
@@ -157,10 +163,8 @@ function App() {
                   console.log('認証成功');
                   setAccessToken(tokenResponse.access_token);
                   setIsAuthenticated(true);
-                  // トークンをローカルストレージに保存
                   localStorage.setItem(AUTH_STORAGE_KEY, tokenResponse.access_token);
                   setIsGoogleApiLoaded(true);
-                  // 認証成功時に明細一覧を取得
                   fetchPayslips();
                 }
               },
@@ -169,10 +173,11 @@ function App() {
 
             setTokenClient(client);
             setIsGoogleApiLoaded(true);
-            console.log('Google APIの初期化が完了しました');
+            console.log('Token Clientの初期化が完了');
 
             // 保存されたトークンがある場合は明細一覧を取得
             if (isAuthenticated && accessToken) {
+              console.log('保存されたトークンを使用して明細一覧を取得');
               await fetchPayslips();
             }
           } catch (error) {
@@ -192,17 +197,25 @@ function App() {
 
   // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    if (view === 'list' && isInitialized) {
-      if (isAuthenticated && accessToken) {
-        fetchPayslips();
-      } else {
-        requestToken().then(() => {
-          fetchPayslips();
-        }).catch(error => {
-          console.error('認証に失敗しました:', error);
-        });
+    const loadPayslips = async () => {
+      if (view === 'list' && isInitialized) {
+        console.log('明細一覧画面を開きました');
+        try {
+          if (isAuthenticated && accessToken) {
+            console.log('認証済みの状態で明細一覧を取得');
+            await fetchPayslips();
+          } else {
+            console.log('認証が必要です');
+            await requestToken();
+            await fetchPayslips();
+          }
+        } catch (error) {
+          console.error('明細一覧の取得に失敗:', error);
+        }
       }
-    }
+    };
+
+    loadPayslips();
   }, [view, isInitialized]);
 
   // カメラストリームのクリーンアップ
