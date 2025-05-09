@@ -7,6 +7,9 @@ import './App.css'; // 通常のCSSファイルを使用
 const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
+// Google Drive APIのスコープ
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
 // メインアプリケーション
 function App() {
   const [view, setView] = useState('home'); // home, camera, list, detail
@@ -15,14 +18,37 @@ function App() {
   const [isGoogleApiLoaded, setIsGoogleApiLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [stream, setStream] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const videoRef = useRef(null);
 
-  // Google APIのロード状態をシミュレート
+  // Google APIのロード
   useEffect(() => {
-    // 実際の実装では、Google API Client Libraryをロード
-    setTimeout(() => {
-      setIsGoogleApiLoaded(true);
-    }, 1000);
+    const loadGoogleApi = async () => {
+      try {
+        // Google API Client Libraryをロード
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://apis.google.com/js/api.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+
+        // Google APIの初期化
+        await new Promise((resolve) => gapi.load('client:auth2', resolve));
+        await gapi.client.init({
+          apiKey: GOOGLE_API_KEY,
+          clientId: GOOGLE_CLIENT_ID,
+          scope: SCOPES,
+        });
+
+        setIsGoogleApiLoaded(true);
+      } catch (error) {
+        console.error('Google APIのロードに失敗しました:', error);
+      }
+    };
+
+    loadGoogleApi();
   }, []);
 
   // カメラストリームのクリーンアップ
@@ -34,26 +60,93 @@ function App() {
     };
   }, [stream]);
 
-  // 写真を撮影する関数
-  const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoRef.current, 0, 0);
-      
-      const imageUrl = canvas.toDataURL('image/jpeg');
-      const newPayslip = {
-        id: Date.now(),
-        date: new Date().toISOString().slice(0, 7), // YYYY-MM
-        imageUrl: imageUrl,
-        title: `${new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}分給与明細`
+  // Google Driveにファイルをアップロード
+  const uploadToGoogleDrive = async (imageData) => {
+    try {
+      setIsUploading(true);
+
+      // 認証状態を確認
+      if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+        await gapi.auth2.getAuthInstance().signIn();
+      }
+
+      // 画像データをBlobに変換
+      const byteString = atob(imageData.split(',')[1]);
+      const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeString });
+
+      // ファイル名を生成
+      const fileName = `給与明細_${new Date().toISOString().slice(0, 10)}.jpg`;
+
+      // メタデータを設定
+      const metadata = {
+        name: fileName,
+        mimeType: mimeString,
+        parents: ['root'], // ルートフォルダに保存
       };
-      
-      setPayslips([...payslips, newPayslip]);
-      alert('給与明細を保存しました！');
-      setView('home');
+
+      // マルチパートリクエストを作成
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', blob);
+
+      // ファイルをアップロード
+      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().access_token}`,
+        },
+        body: form,
+      });
+
+      if (!response.ok) {
+        throw new Error('アップロードに失敗しました');
+      }
+
+      const result = await response.json();
+      return result.id; // アップロードされたファイルのIDを返す
+    } catch (error) {
+      console.error('Google Driveへのアップロードに失敗しました:', error);
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // 写真を撮影する関数
+  const capturePhoto = async () => {
+    if (videoRef.current) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoRef.current, 0, 0);
+        
+        const imageUrl = canvas.toDataURL('image/jpeg');
+        
+        // Google Driveにアップロード
+        const fileId = await uploadToGoogleDrive(imageUrl);
+        
+        const newPayslip = {
+          id: Date.now(),
+          date: new Date().toISOString().slice(0, 7),
+          imageUrl: imageUrl,
+          fileId: fileId,
+          title: `${new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}分給与明細`
+        };
+        
+        setPayslips([...payslips, newPayslip]);
+        alert('給与明細を保存しました！');
+        setView('home');
+      } catch (error) {
+        alert('保存に失敗しました: ' + error.message);
+      }
     }
   };
 
@@ -107,6 +200,7 @@ function App() {
             videoRef={videoRef}
             stream={stream}
             setStream={setStream}
+            isUploading={isUploading}
           />
         )}
         
@@ -196,7 +290,7 @@ function HomeView({ onCameraClick, onListClick, isGoogleApiLoaded }) {
 }
 
 // カメラ画面
-function CameraView({ onCapture, videoRef, stream, setStream }) {
+function CameraView({ onCapture, videoRef, stream, setStream, isUploading }) {
   const [permission, setPermission] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -320,8 +414,9 @@ function CameraView({ onCapture, videoRef, stream, setStream }) {
             <button 
               onClick={onCapture}
               className="capture-button"
+              disabled={isUploading}
             >
-              撮影
+              {isUploading ? '保存中...' : '撮影'}
             </button>
           </div>
         </>
