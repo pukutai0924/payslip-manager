@@ -15,7 +15,7 @@ console.log('API Key exists:', !!GOOGLE_API_KEY);
 console.log('Client ID exists:', !!GOOGLE_CLIENT_ID);
 
 // Google Drive APIのスコープ
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive';
 
 // ローカルストレージのキー
 const AUTH_STORAGE_KEY = 'google_auth_token';
@@ -50,6 +50,8 @@ function App() {
     }
 
     if (isAuthenticated && accessToken) {
+      // 既存のトークンを設定
+      gapi.client.setToken({ access_token: accessToken });
       return { access_token: accessToken };
     }
 
@@ -61,10 +63,16 @@ function App() {
           setAccessToken(response.access_token);
           setIsAuthenticated(true);
           localStorage.setItem(AUTH_STORAGE_KEY, response.access_token);
+          // 新しいトークンを設定
+          gapi.client.setToken({ access_token: response.access_token });
           resolve(response);
         }
       };
-      tokenClient.requestAccessToken({ prompt: '' });
+      tokenClient.requestAccessToken({
+        prompt: '',
+        ux_mode: 'redirect',
+        redirect_uri: window.location.origin
+      });
     });
   };
 
@@ -86,40 +94,73 @@ function App() {
       if (!isAuthenticated) {
         console.log('認証が必要です...');
         await requestToken();
+      } else {
+        // 認証済みの場合はトークンを設定
+        gapi.client.setToken({ access_token: accessToken });
       }
 
       console.log('Drive APIにアクセス...');
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
         q: "name contains '給与明細' and mimeType contains 'image/'",
-        fields: 'files(id, name, createdTime, webContentLink)',
+        fields: 'files(id, name, createdTime, webContentLink, thumbnailLink)',
         orderBy: 'createdTime desc',
-        spaces: 'drive'
+        spaces: 'drive',
+        pageSize: 100
       });
 
       console.log('ファイル一覧を取得:', response.result.files.length, '件');
       const files = response.result.files;
+      
+      if (files.length === 0) {
+        console.log('ファイルが見つかりませんでした');
+        setPayslips([]);
+        return;
+      }
+
       const payslipsData = await Promise.all(
         files.map(async (file) => {
-          const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-          
-          return {
-            id: file.id,
-            title: file.name,
-            date: new Date(file.createdTime).toISOString().slice(0, 7),
-            imageUrl: downloadUrl,
-            fileId: file.id,
-            webContentLink: file.webContentLink
-          };
+          try {
+            // ファイルのメタデータを取得
+            const fileResponse = await gapi.client.drive.files.get({
+              fileId: file.id,
+              fields: 'id, name, createdTime, webContentLink, thumbnailLink'
+            });
+
+            const fileData = fileResponse.result;
+            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media`;
+            
+            return {
+              id: fileData.id,
+              title: fileData.name,
+              date: new Date(fileData.createdTime).toISOString().slice(0, 7),
+              imageUrl: downloadUrl,
+              fileId: fileData.id,
+              webContentLink: fileData.webContentLink,
+              thumbnailUrl: fileData.thumbnailLink
+            };
+          } catch (error) {
+            console.error('ファイルの取得に失敗:', file.id, error);
+            return null;
+          }
         })
       );
 
-      console.log('明細一覧を設定:', payslipsData.length, '件');
-      setPayslips(payslipsData);
+      // エラーで取得できなかったファイルを除外
+      const validPayslips = payslipsData.filter(payslip => payslip !== null);
+      console.log('有効な明細一覧を設定:', validPayslips.length, '件');
+      setPayslips(validPayslips);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
       if (error.status === 401 || error.status === 403) {
         clearAuth();
+        // 認証エラーの場合は再認証を試みる
+        try {
+          await requestToken();
+          await fetchPayslips();
+        } catch (retryError) {
+          console.error('再認証に失敗しました:', retryError);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -132,7 +173,6 @@ function App() {
       try {
         console.log('Google APIの初期化を開始...');
         
-        // Google API Client Libraryのロード
         await new Promise((resolve) => {
           if (window.gapi) {
             resolve();
@@ -144,7 +184,6 @@ function App() {
           }
         });
 
-        // Google APIの初期化
         await gapi.load('client', async () => {
           try {
             await gapi.client.init({
@@ -164,12 +203,15 @@ function App() {
                   setAccessToken(tokenResponse.access_token);
                   setIsAuthenticated(true);
                   localStorage.setItem(AUTH_STORAGE_KEY, tokenResponse.access_token);
+                  // 新しいトークンを設定
+                  gapi.client.setToken({ access_token: tokenResponse.access_token });
                   setIsGoogleApiLoaded(true);
                   fetchPayslips();
                 }
               },
               prompt: '',
-              ux_mode: 'popup'
+              ux_mode: 'redirect',
+              redirect_uri: window.location.origin
             });
 
             setTokenClient(client);
@@ -179,6 +221,8 @@ function App() {
             // 保存されたトークンがある場合は明細一覧を取得
             if (isAuthenticated && accessToken) {
               console.log('保存されたトークンを使用して明細一覧を取得');
+              // 保存されたトークンを設定
+              gapi.client.setToken({ access_token: accessToken });
               await fetchPayslips();
             }
           } catch (error) {
@@ -204,6 +248,8 @@ function App() {
         try {
           if (isAuthenticated && accessToken) {
             console.log('認証済みの状態で明細一覧を取得');
+            // 認証トークンを設定
+            gapi.client.setToken({ access_token: accessToken });
             await fetchPayslips();
           } else {
             console.log('認証が必要です');
