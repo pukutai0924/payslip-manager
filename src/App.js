@@ -121,7 +121,7 @@ function App() {
       console.log('Drive APIにアクセス...');
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
-        q: "name contains '給与明細' and trashed = false",
+        q: "name contains '給与明細' and mimeType contains 'image/' and trashed = false",
         fields: 'files(id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType)',
         orderBy: 'createdTime desc',
         spaces: 'drive',
@@ -152,12 +152,6 @@ function App() {
             const fileData = fileResponse.result;
             console.log('ファイルデータ:', fileData.name, fileData.mimeType);
             
-            // 画像ファイルのみを処理
-            if (!fileData.mimeType || !fileData.mimeType.startsWith('image/')) {
-              console.log('スキップ: 画像ファイルではありません:', fileData.name);
-              return null;
-            }
-
             // 認証トークンを含むURLを生成
             const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media&access_token=${accessToken}`;
             const thumbnailUrl = fileData.thumbnailLink ? `${fileData.thumbnailLink}&access_token=${accessToken}` : null;
@@ -402,15 +396,29 @@ function App() {
         // Google Driveにアップロード
         const fileId = await uploadToGoogleDrive(imageUrl);
         
-        const newPayslip = {
-          id: Date.now(),
-          date: new Date().toISOString().slice(0, 7),
-          imageUrl: imageUrl,
+        // アップロードしたファイルの情報を取得
+        const fileResponse = await gapi.client.drive.files.get({
           fileId: fileId,
-          title: `${new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}分給与明細`
+          fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
+        });
+
+        const fileData = fileResponse.result;
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${accessToken}`;
+        const thumbnailUrl = fileData.thumbnailLink ? `${fileData.thumbnailLink}&access_token=${accessToken}` : null;
+        
+        const newPayslip = {
+          id: fileId,
+          title: fileData.name,
+          date: new Date().toISOString().slice(0, 7),
+          createdTime: fileData.createdTime,
+          imageUrl: downloadUrl,
+          thumbnailUrl: thumbnailUrl,
+          fileId: fileId,
+          webContentLink: fileData.webContentLink,
+          mimeType: fileData.mimeType
         };
         
-        setPayslips([...payslips, newPayslip]);
+        setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
         alert('給与明細を保存しました！');
         setView('home');
       } catch (error) {
