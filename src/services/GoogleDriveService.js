@@ -3,8 +3,8 @@
 
 class GoogleDriveService {
     constructor() {
-      this.API_KEY = 'AIzaSyD2imkXLYGqzjMjvQ5DOwDjqr0LzehEBIA'; // YOUR_API_KEY
-      this.CLIENT_ID = '60391276194-ti0i86s01ctdrbdnbik9k7hpdlj8upse.apps.googleusercontent.com'; // YOUR_CLIENT_ID
+      this.API_KEY = REACT_APP_GOOGLE_API_KEY; // YOUR_API_KEY
+      this.CLIENT_ID = REACT_APP_GOOGLE_CLIENT_ID; // YOUR_CLIENT_ID
       this.DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
       this.SCOPES = 'https://www.googleapis.com/auth/drive.file';
       this.isInitialized = false;

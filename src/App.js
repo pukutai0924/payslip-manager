@@ -3,6 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, List, FileText, Upload, Search, ArrowLeft } from 'lucide-react';
 import './App.css'; // 通常のCSSファイルを使用
 
+// 環境変数からAPIキーとクライアントIDを取得
+const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
 // メインアプリケーション
 function App() {
   const [view, setView] = useState('home'); // home, camera, list, detail
