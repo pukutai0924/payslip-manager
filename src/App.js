@@ -30,25 +30,29 @@ function App() {
   const [accessToken, setAccessToken] = useState(null);
   const videoRef = useRef(null);
 
+  // トークンの取得を要求
+  const requestToken = async () => {
+    if (!tokenClient) {
+      throw new Error('認証クライアントが初期化されていません');
+    }
+
+    return new Promise((resolve, reject) => {
+      tokenClient.callback = (response) => {
+        if (response.error) {
+          reject(response.error);
+        } else {
+          setAccessToken(response.access_token);
+          resolve(response);
+        }
+      };
+      tokenClient.requestAccessToken();
+    });
+  };
+
   // Google Driveから明細一覧を取得
   const fetchPayslips = async () => {
     try {
-      if (!tokenClient) {
-        throw new Error('認証クライアントが初期化されていません');
-      }
-
-      // トークンの取得を要求
-      await new Promise((resolve, reject) => {
-        tokenClient.callback = (response) => {
-          if (response.error) {
-            reject(response.error);
-          } else {
-            setAccessToken(response.access_token);
-            resolve(response);
-          }
-        };
-        tokenClient.requestAccessToken();
-      });
+      await requestToken();
 
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
@@ -159,21 +163,7 @@ function App() {
       setIsUploading(true);
 
       // トークンの取得
-      if (!tokenClient) {
-        throw new Error('認証クライアントが初期化されていません');
-      }
-
-      // トークンの取得を要求
-      await new Promise((resolve, reject) => {
-        tokenClient.callback = (response) => {
-          if (response.error) {
-            reject(response.error);
-          } else {
-            resolve(response);
-          }
-        };
-        tokenClient.requestAccessToken();
-      });
+      await requestToken();
 
       // 画像データをBlobに変換
       const byteString = atob(imageData.split(',')[1]);
@@ -204,7 +194,7 @@ function App() {
       const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${gapi.auth.getToken().access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: form,
       });
