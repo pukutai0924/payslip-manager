@@ -27,6 +27,7 @@ function App() {
   const [stream, setStream] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
+  const [accessToken, setAccessToken] = useState(null);
   const videoRef = useRef(null);
 
   // Google Driveから明細一覧を取得
@@ -42,6 +43,7 @@ function App() {
           if (response.error) {
             reject(response.error);
           } else {
+            setAccessToken(response.access_token);
             resolve(response);
           }
         };
@@ -58,14 +60,14 @@ function App() {
       const files = response.result.files;
       const payslipsData = await Promise.all(
         files.map(async (file) => {
-          // ファイルのサムネイルURLを取得
-          const thumbnailUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w200`;
+          // ファイルのダウンロードURLを取得
+          const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
           
           return {
             id: file.id,
             title: file.name,
             date: new Date(file.createdTime).toISOString().slice(0, 7),
-            imageUrl: thumbnailUrl,
+            imageUrl: downloadUrl,
             fileId: file.id,
             webContentLink: file.webContentLink
           };
@@ -111,11 +113,13 @@ function App() {
               callback: (tokenResponse) => {
                 if (tokenResponse && tokenResponse.access_token) {
                   console.log('認証成功');
+                  setAccessToken(tokenResponse.access_token);
                   setIsGoogleApiLoaded(true);
                   // 認証成功時に明細一覧を取得
                   fetchPayslips();
                 }
               },
+              prompt: 'consent'
             });
 
             setTokenClient(client);
@@ -135,10 +139,10 @@ function App() {
 
   // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    if (view === 'list' && isGoogleApiLoaded) {
+    if (view === 'list' && isGoogleApiLoaded && accessToken) {
       fetchPayslips();
     }
-  }, [view, isGoogleApiLoaded]);
+  }, [view, isGoogleApiLoaded, accessToken]);
 
   // カメラストリームのクリーンアップ
   useEffect(() => {
@@ -563,6 +567,10 @@ function ListView({ payslips, onPayslipClick, searchTerm, onSearchChange }) {
                   src={payslip.imageUrl} 
                   alt={payslip.title} 
                   className="thumbnail-image"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://via.placeholder.com/200x200?text=No+Image';
+                  }}
                 />
               </div>
               <div className="payslip-info">
@@ -590,19 +598,23 @@ function DetailView({ payslip }) {
             src={payslip.imageUrl} 
             alt={payslip.title} 
             className="detail-image"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = 'https://via.placeholder.com/800x600?text=No+Image';
+            }}
           />
         </div>
         
         <div className="detail-actions">
-          <button className="action-button share-button">
+          <a 
+            href={payslip.webContentLink} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="action-button share-button"
+          >
             <Upload size={16} className="action-icon" />
-            <span>共有</span>
-          </button>
-          
-          <button className="action-button edit-button">
-            <FileText size={16} className="action-icon" />
-            <span>編集</span>
-          </button>
+            <span>Google Driveで開く</span>
+          </a>
         </div>
       </div>
     </div>
