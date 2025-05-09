@@ -121,7 +121,7 @@ function App() {
       console.log('Drive APIにアクセス...');
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
-        q: "name contains '給与明細' and mimeType contains 'image/' and trashed = false",
+        q: "name contains '給与明細' and trashed = false",
         fields: 'files(id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType)',
         orderBy: 'createdTime desc',
         spaces: 'drive',
@@ -141,14 +141,16 @@ function App() {
       const payslipsData = await Promise.all(
         files.map(async (file) => {
           try {
+            console.log('ファイル情報を取得中:', file.name, file.mimeType);
+            
             // ファイルのメタデータを取得
             const fileResponse = await gapi.client.drive.files.get({
               fileId: file.id,
-              fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType',
-              alt: 'media'
+              fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
             });
 
             const fileData = fileResponse.result;
+            console.log('ファイルデータ:', fileData.name, fileData.mimeType);
             
             // 画像ファイルのみを処理
             if (!fileData.mimeType || !fileData.mimeType.startsWith('image/')) {
