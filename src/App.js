@@ -29,6 +29,55 @@ function App() {
   const [tokenClient, setTokenClient] = useState(null);
   const videoRef = useRef(null);
 
+  // Google Driveから明細一覧を取得
+  const fetchPayslips = async () => {
+    try {
+      if (!tokenClient) {
+        throw new Error('認証クライアントが初期化されていません');
+      }
+
+      // トークンの取得を要求
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (response) => {
+          if (response.error) {
+            reject(response.error);
+          } else {
+            resolve(response);
+          }
+        };
+        tokenClient.requestAccessToken();
+      });
+
+      // 給与明細のファイルを検索
+      const response = await gapi.client.drive.files.list({
+        q: "name contains '給与明細' and mimeType contains 'image/'",
+        fields: 'files(id, name, createdTime, webContentLink)',
+        orderBy: 'createdTime desc'
+      });
+
+      const files = response.result.files;
+      const payslipsData = await Promise.all(
+        files.map(async (file) => {
+          // ファイルのサムネイルURLを取得
+          const thumbnailUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w200`;
+          
+          return {
+            id: file.id,
+            title: file.name,
+            date: new Date(file.createdTime).toISOString().slice(0, 7),
+            imageUrl: thumbnailUrl,
+            fileId: file.id,
+            webContentLink: file.webContentLink
+          };
+        })
+      );
+
+      setPayslips(payslipsData);
+    } catch (error) {
+      console.error('明細一覧の取得に失敗しました:', error);
+    }
+  };
+
   // Google APIの初期化
   useEffect(() => {
     const initializeGoogleApi = async () => {
@@ -63,6 +112,8 @@ function App() {
                 if (tokenResponse && tokenResponse.access_token) {
                   console.log('認証成功');
                   setIsGoogleApiLoaded(true);
+                  // 認証成功時に明細一覧を取得
+                  fetchPayslips();
                 }
               },
             });
@@ -81,6 +132,13 @@ function App() {
 
     initializeGoogleApi();
   }, []);
+
+  // 明細一覧画面を開いたときに明細一覧を取得
+  useEffect(() => {
+    if (view === 'list' && isGoogleApiLoaded) {
+      fetchPayslips();
+    }
+  }, [view, isGoogleApiLoaded]);
 
   // カメラストリームのクリーンアップ
   useEffect(() => {
@@ -152,6 +210,10 @@ function App() {
       }
 
       const result = await response.json();
+      
+      // アップロード後に明細一覧を更新
+      await fetchPayslips();
+      
       return result.id;
     } catch (error) {
       console.error('Google Driveへのアップロードに失敗しました:', error);
