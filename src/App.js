@@ -119,7 +119,7 @@ function App() {
                   fetchPayslips();
                 }
               },
-              prompt: 'consent'
+              prompt: ''
             });
 
             setTokenClient(client);
@@ -472,6 +472,9 @@ function CameraView({ onCapture, videoRef, stream, setStream, isUploading }) {
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(error => {
+        console.error('ビデオの再生に失敗しました:', error);
+      });
     }
   }, [stream, videoRef]);
 
