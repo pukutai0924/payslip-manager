@@ -17,6 +17,9 @@ console.log('Client ID exists:', !!GOOGLE_CLIENT_ID);
 // Google Drive APIのスコープ
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
+// ローカルストレージのキー
+const AUTH_STORAGE_KEY = 'google_auth_token';
+
 // メインアプリケーション
 function App() {
   const [view, setView] = useState('home'); // home, camera, list, detail
@@ -27,8 +30,15 @@ function App() {
   const [stream, setStream] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
-  const [accessToken, setAccessToken] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessToken, setAccessToken] = useState(() => {
+    // ローカルストレージからトークンを復元
+    const savedToken = localStorage.getItem(AUTH_STORAGE_KEY);
+    return savedToken || null;
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // ローカルストレージからトークンが存在する場合は認証済みとみなす
+    return !!localStorage.getItem(AUTH_STORAGE_KEY);
+  });
   const videoRef = useRef(null);
 
   // トークンの取得を要求
@@ -48,11 +58,20 @@ function App() {
         } else {
           setAccessToken(response.access_token);
           setIsAuthenticated(true);
+          // トークンをローカルストレージに保存
+          localStorage.setItem(AUTH_STORAGE_KEY, response.access_token);
           resolve(response);
         }
       };
       tokenClient.requestAccessToken();
     });
+  };
+
+  // 認証状態のクリア
+  const clearAuth = () => {
+    setAccessToken(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   // Google Driveから明細一覧を取得
@@ -89,7 +108,7 @@ function App() {
       setPayslips(payslipsData);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
-      setIsAuthenticated(false);
+      clearAuth();
     }
   };
 
@@ -128,6 +147,8 @@ function App() {
                   console.log('認証成功');
                   setAccessToken(tokenResponse.access_token);
                   setIsAuthenticated(true);
+                  // トークンをローカルストレージに保存
+                  localStorage.setItem(AUTH_STORAGE_KEY, tokenResponse.access_token);
                   setIsGoogleApiLoaded(true);
                   // 認証成功時に明細一覧を取得
                   fetchPayslips();
@@ -139,6 +160,11 @@ function App() {
             setTokenClient(client);
             setIsGoogleApiLoaded(true);
             console.log('Google APIの初期化が完了しました');
+
+            // 保存されたトークンがある場合は明細一覧を取得
+            if (isAuthenticated && accessToken) {
+              fetchPayslips();
+            }
           } catch (error) {
             console.error('Google APIの初期化に失敗しました:', error);
           }
