@@ -64,7 +64,7 @@ function App() {
           resolve(response);
         }
       };
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      tokenClient.requestAccessToken({ prompt: '' });
     });
   };
 
@@ -73,14 +73,6 @@ function App() {
     setAccessToken(null);
     setIsAuthenticated(false);
     localStorage.removeItem(AUTH_STORAGE_KEY);
-    // 認証状態をクリアした後、再認証を促す
-    if (view === 'list') {
-      requestToken().then(() => {
-        fetchPayslips();
-      }).catch(error => {
-        console.error('再認証に失敗しました:', error);
-      });
-    }
   };
 
   // Google Driveから明細一覧を取得
@@ -176,7 +168,7 @@ function App() {
                   fetchPayslips();
                 }
               },
-              prompt: 'consent',
+              prompt: '',
               ux_mode: 'popup'
             });
 
