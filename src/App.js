@@ -15,7 +15,7 @@ console.log('API Key exists:', !!GOOGLE_API_KEY);
 console.log('Client ID exists:', !!GOOGLE_CLIENT_ID);
 
 // Google Drive APIのスコープ
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 
 // ローカルストレージのキー
 const AUTH_STORAGE_KEY = 'google_auth_token';
@@ -60,12 +60,11 @@ function App() {
         } else {
           setAccessToken(response.access_token);
           setIsAuthenticated(true);
-          // トークンをローカルストレージに保存
           localStorage.setItem(AUTH_STORAGE_KEY, response.access_token);
           resolve(response);
         }
       };
-      tokenClient.requestAccessToken();
+      tokenClient.requestAccessToken({ prompt: 'consent' });
     });
   };
 
@@ -74,6 +73,14 @@ function App() {
     setAccessToken(null);
     setIsAuthenticated(false);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    // 認証状態をクリアした後、再認証を促す
+    if (view === 'list') {
+      requestToken().then(() => {
+        fetchPayslips();
+      }).catch(error => {
+        console.error('再認証に失敗しました:', error);
+      });
+    }
   };
 
   // Google Driveから明細一覧を取得
@@ -94,7 +101,8 @@ function App() {
       const response = await gapi.client.drive.files.list({
         q: "name contains '給与明細' and mimeType contains 'image/'",
         fields: 'files(id, name, createdTime, webContentLink)',
-        orderBy: 'createdTime desc'
+        orderBy: 'createdTime desc',
+        spaces: 'drive'
       });
 
       console.log('ファイル一覧を取得:', response.result.files.length, '件');
@@ -118,7 +126,7 @@ function App() {
       setPayslips(payslipsData);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
-      if (error.status === 401) {
+      if (error.status === 401 || error.status === 403) {
         clearAuth();
       }
     } finally {
@@ -168,7 +176,8 @@ function App() {
                   fetchPayslips();
                 }
               },
-              prompt: ''
+              prompt: 'consent',
+              ux_mode: 'popup'
             });
 
             setTokenClient(client);
