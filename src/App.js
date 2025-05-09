@@ -39,6 +39,7 @@ function App() {
     // ローカルストレージからトークンが存在する場合は認証済みとみなす
     return !!localStorage.getItem(AUTH_STORAGE_KEY);
   });
+  const [isLoading, setIsLoading] = useState(false);
   const videoRef = useRef(null);
 
   // トークンの取得を要求
@@ -76,7 +77,11 @@ function App() {
 
   // Google Driveから明細一覧を取得
   const fetchPayslips = async () => {
+    if (isLoading) return;
+    
     try {
+      setIsLoading(true);
+      
       if (!isAuthenticated) {
         await requestToken();
       }
@@ -108,7 +113,11 @@ function App() {
       setPayslips(payslipsData);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
-      clearAuth();
+      if (error.status === 401) {
+        clearAuth();
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -179,14 +188,18 @@ function App() {
 
   // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    if (view === 'list' && isGoogleApiLoaded && !isAuthenticated) {
-      requestToken().then(() => {
+    if (view === 'list' && isGoogleApiLoaded) {
+      if (isAuthenticated && accessToken) {
         fetchPayslips();
-      }).catch(error => {
-        console.error('認証に失敗しました:', error);
-      });
+      } else {
+        requestToken().then(() => {
+          fetchPayslips();
+        }).catch(error => {
+          console.error('認証に失敗しました:', error);
+        });
+      }
     }
-  }, [view, isGoogleApiLoaded, isAuthenticated]);
+  }, [view, isGoogleApiLoaded]);
 
   // カメラストリームのクリーンアップ
   useEffect(() => {
