@@ -28,6 +28,7 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const videoRef = useRef(null);
 
   // トークンの取得を要求
@@ -36,12 +37,17 @@ function App() {
       throw new Error('認証クライアントが初期化されていません');
     }
 
+    if (isAuthenticated && accessToken) {
+      return { access_token: accessToken };
+    }
+
     return new Promise((resolve, reject) => {
       tokenClient.callback = (response) => {
         if (response.error) {
           reject(response.error);
         } else {
           setAccessToken(response.access_token);
+          setIsAuthenticated(true);
           resolve(response);
         }
       };
@@ -52,7 +58,9 @@ function App() {
   // Google Driveから明細一覧を取得
   const fetchPayslips = async () => {
     try {
-      await requestToken();
+      if (!isAuthenticated) {
+        await requestToken();
+      }
 
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
@@ -81,6 +89,7 @@ function App() {
       setPayslips(payslipsData);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
+      setIsAuthenticated(false);
     }
   };
 
@@ -118,6 +127,7 @@ function App() {
                 if (tokenResponse && tokenResponse.access_token) {
                   console.log('認証成功');
                   setAccessToken(tokenResponse.access_token);
+                  setIsAuthenticated(true);
                   setIsGoogleApiLoaded(true);
                   // 認証成功時に明細一覧を取得
                   fetchPayslips();
@@ -143,10 +153,14 @@ function App() {
 
   // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    if (view === 'list' && isGoogleApiLoaded && accessToken) {
-      fetchPayslips();
+    if (view === 'list' && isGoogleApiLoaded && !isAuthenticated) {
+      requestToken().then(() => {
+        fetchPayslips();
+      }).catch(error => {
+        console.error('認証に失敗しました:', error);
+      });
     }
-  }, [view, isGoogleApiLoaded, accessToken]);
+  }, [view, isGoogleApiLoaded, isAuthenticated]);
 
   // カメラストリームのクリーンアップ
   useEffect(() => {
@@ -163,7 +177,9 @@ function App() {
       setIsUploading(true);
 
       // トークンの取得
-      await requestToken();
+      if (!isAuthenticated) {
+        await requestToken();
+      }
 
       // 画像データをBlobに変換
       const byteString = atob(imageData.split(',')[1]);
@@ -211,6 +227,7 @@ function App() {
       return result.id;
     } catch (error) {
       console.error('Google Driveへのアップロードに失敗しました:', error);
+      setIsAuthenticated(false);
       throw error;
     } finally {
       setIsUploading(false);
