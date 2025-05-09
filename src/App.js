@@ -20,6 +20,25 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapi
 // ローカルストレージのキー
 const AUTH_STORAGE_KEY = 'google_auth_token';
 
+// 日付を安全に処理する関数
+const safeParseDate = (dateString) => {
+  if (!dateString) {
+    console.warn('日付が未定義です');
+    return new Date();
+  }
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      console.warn('無効な日付:', dateString);
+      return new Date();
+    }
+    return date;
+  } catch (error) {
+    console.warn('日付の解析に失敗:', error);
+    return new Date();
+  }
+};
+
 // メインアプリケーション
 function App() {
   const [view, setView] = useState('home'); // home, camera, list, detail
@@ -102,8 +121,8 @@ function App() {
       console.log('Drive APIにアクセス...');
       // 給与明細のファイルを検索
       const response = await gapi.client.drive.files.list({
-        q: "name contains '給与明細' and mimeType contains 'image/'",
-        fields: 'files(id, name, createdTime, webContentLink, thumbnailLink)',
+        q: "name contains '給与明細' and mimeType contains 'image/' and trashed = false",
+        fields: 'files(id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType)',
         orderBy: 'createdTime desc',
         spaces: 'drive',
         pageSize: 100
@@ -118,26 +137,42 @@ function App() {
         return;
       }
 
+      // ファイルの詳細情報を取得
       const payslipsData = await Promise.all(
         files.map(async (file) => {
           try {
             // ファイルのメタデータを取得
             const fileResponse = await gapi.client.drive.files.get({
               fileId: file.id,
-              fields: 'id, name, createdTime, webContentLink, thumbnailLink'
+              fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType',
+              alt: 'media'
             });
 
             const fileData = fileResponse.result;
-            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media`;
+            
+            // 画像ファイルのみを処理
+            if (!fileData.mimeType || !fileData.mimeType.startsWith('image/')) {
+              console.log('スキップ: 画像ファイルではありません:', fileData.name);
+              return null;
+            }
+
+            // 認証トークンを含むURLを生成
+            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media&access_token=${accessToken}`;
+            const thumbnailUrl = fileData.thumbnailLink ? `${fileData.thumbnailLink}&access_token=${accessToken}` : null;
+            
+            // 日付を安全に処理
+            const createdDate = safeParseDate(fileData.createdTime || new Date().toISOString());
             
             return {
               id: fileData.id,
-              title: fileData.name,
-              date: new Date(fileData.createdTime).toISOString().slice(0, 7),
+              title: fileData.name || '無題のファイル',
+              date: createdDate.toISOString().slice(0, 7),
+              createdTime: createdDate.toISOString(),
               imageUrl: downloadUrl,
+              thumbnailUrl: thumbnailUrl,
               fileId: fileData.id,
               webContentLink: fileData.webContentLink,
-              thumbnailUrl: fileData.thumbnailLink
+              mimeType: fileData.mimeType
             };
           } catch (error) {
             console.error('ファイルの取得に失敗:', file.id, error);
@@ -149,7 +184,20 @@ function App() {
       // エラーで取得できなかったファイルを除外
       const validPayslips = payslipsData.filter(payslip => payslip !== null);
       console.log('有効な明細一覧を設定:', validPayslips.length, '件');
-      setPayslips(validPayslips);
+      
+      // 重複を排除（同じファイル名の場合は最新のものを保持）
+      const uniquePayslips = validPayslips.reduce((acc, current) => {
+        const existingIndex = acc.findIndex(item => item.title === current.title);
+        if (existingIndex === -1) {
+          acc.push(current);
+        } else if (new Date(current.createdTime) > new Date(acc[existingIndex].createdTime)) {
+          acc[existingIndex] = current;
+        }
+        return acc;
+      }, []);
+
+      console.log('重複を排除した明細一覧を設定:', uniquePayslips.length, '件');
+      setPayslips(uniquePayslips);
     } catch (error) {
       console.error('明細一覧の取得に失敗しました:', error);
       if (error.status === 401 || error.status === 403) {
@@ -370,9 +418,10 @@ function App() {
   };
 
   // フィルター処理された給与明細リスト
-  const filteredPayslips = payslips.filter(payslip => 
-    payslip.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPayslips = payslips.filter(payslip => {
+    if (!payslip || !payslip.title) return false;
+    return payslip.title.toLowerCase().includes((searchTerm || '').toLowerCase());
+  });
 
   return (
     <div className="app-container">
@@ -649,13 +698,18 @@ function CameraView({ onCapture, videoRef, stream, setStream, isUploading }) {
 
 // 明細一覧画面
 function ListView({ payslips, onPayslipClick, searchTerm, onSearchChange }) {
+  // 重複を排除した一意のキーを生成
+  const getUniqueKey = (payslip) => {
+    return `${payslip.id}-${payslip.createdTime}`;
+  };
+
   return (
     <div className="list-view">
       <div className="search-container">
         <input
           type="text"
           placeholder="給与明細を検索..."
-          value={searchTerm}
+          value={searchTerm || ''}
           onChange={(e) => onSearchChange(e.target.value)}
           className="search-input"
         />
@@ -671,24 +725,24 @@ function ListView({ payslips, onPayslipClick, searchTerm, onSearchChange }) {
         <ul className="payslip-list">
           {payslips.map(payslip => (
             <li 
-              key={payslip.id}
+              key={getUniqueKey(payslip)}
               onClick={() => onPayslipClick(payslip)}
               className="payslip-item"
             >
               <div className="payslip-thumbnail">
                 <img 
-                  src={payslip.imageUrl} 
-                  alt={payslip.title} 
+                  src={payslip.thumbnailUrl || payslip.imageUrl} 
+                  alt={payslip.title || '給与明細'} 
                   className="thumbnail-image"
                   onError={(e) => {
                     e.target.onerror = null;
-                    e.target.src = 'https://via.placeholder.com/200x200?text=No+Image';
+                    e.target.src = payslip.imageUrl;
                   }}
                 />
               </div>
               <div className="payslip-info">
-                <h3 className="payslip-title">{payslip.title}</h3>
-                <p className="payslip-date">保存日: {new Date(payslip.id).toLocaleDateString('ja-JP')}</p>
+                <h3 className="payslip-title">{payslip.title || '無題のファイル'}</h3>
+                <p className="payslip-date">保存日: {safeParseDate(payslip.createdTime).toLocaleDateString('ja-JP')}</p>
               </div>
             </li>
           ))}
@@ -703,17 +757,17 @@ function DetailView({ payslip }) {
   return (
     <div className="detail-view">
       <div className="detail-card">
-        <h2 className="detail-title">{payslip.title}</h2>
-        <p className="detail-date">保存日: {new Date(payslip.id).toLocaleDateString('ja-JP')}</p>
+        <h2 className="detail-title">{payslip.title || '無題のファイル'}</h2>
+        <p className="detail-date">保存日: {safeParseDate(payslip.createdTime).toLocaleDateString('ja-JP')}</p>
         
         <div className="detail-image-container">
           <img 
             src={payslip.imageUrl} 
-            alt={payslip.title} 
+            alt={payslip.title || '給与明細'} 
             className="detail-image"
             onError={(e) => {
               e.target.onerror = null;
-              e.target.src = 'https://via.placeholder.com/800x600?text=No+Image';
+              e.target.src = payslip.thumbnailUrl;
             }}
           />
         </div>
