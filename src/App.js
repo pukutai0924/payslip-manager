@@ -40,6 +40,7 @@ function App() {
     return !!localStorage.getItem(AUTH_STORAGE_KEY);
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const videoRef = useRef(null);
 
   // トークンの取得を要求
@@ -172,14 +173,17 @@ function App() {
 
             // 保存されたトークンがある場合は明細一覧を取得
             if (isAuthenticated && accessToken) {
-              fetchPayslips();
+              await fetchPayslips();
             }
           } catch (error) {
             console.error('Google APIの初期化に失敗しました:', error);
+          } finally {
+            setIsInitialized(true);
           }
         });
       } catch (error) {
         console.error('Google APIの初期化に失敗しました:', error);
+        setIsInitialized(true);
       }
     };
 
@@ -188,7 +192,7 @@ function App() {
 
   // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    if (view === 'list' && isGoogleApiLoaded) {
+    if (view === 'list' && isInitialized) {
       if (isAuthenticated && accessToken) {
         fetchPayslips();
       } else {
@@ -199,7 +203,7 @@ function App() {
         });
       }
     }
-  }, [view, isGoogleApiLoaded]);
+  }, [view, isInitialized]);
 
   // カメラストリームのクリーンアップ
   useEffect(() => {
