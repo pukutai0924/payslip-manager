@@ -154,7 +154,7 @@ function App() {
             
             // 認証トークンを含むURLを生成
             const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media&access_token=${accessToken}`;
-            const thumbnailUrl = fileData.thumbnailLink ? `${fileData.thumbnailLink}&access_token=${accessToken}` : null;
+            const thumbnailUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media&access_token=${accessToken}`;
             
             // 日付を安全に処理
             const createdDate = safeParseDate(fileData.createdTime || new Date().toISOString());
@@ -430,7 +430,9 @@ function App() {
   // フィルター処理された給与明細リスト
   const filteredPayslips = payslips.filter(payslip => {
     if (!payslip || !payslip.title) return false;
-    return payslip.title.toLowerCase().includes((searchTerm || '').toLowerCase());
+    const searchLower = (searchTerm || '').toLowerCase();
+    const titleLower = payslip.title.toLowerCase();
+    return titleLower.includes(searchLower);
   });
 
   return (
@@ -486,6 +488,7 @@ function App() {
           <ListView 
             payslips={filteredPayslips} 
             onPayslipClick={(payslip) => {
+              console.log('明細を選択:', payslip.title, payslip.id);
               setSelectedPayslip(payslip);
               setView('detail');
             }}
@@ -708,6 +711,8 @@ function CameraView({ onCapture, videoRef, stream, setStream, isUploading }) {
 
 // 明細一覧画面
 function ListView({ payslips, onPayslipClick, searchTerm, onSearchChange }) {
+  console.log('ListView - 表示する明細一覧:', payslips);
+
   // 重複を排除した一意のキーを生成
   const getUniqueKey = (payslip) => {
     return `${payslip.id}-${payslip.createdTime}`;
@@ -733,29 +738,37 @@ function ListView({ payslips, onPayslipClick, searchTerm, onSearchChange }) {
         </div>
       ) : (
         <ul className="payslip-list">
-          {payslips.map(payslip => (
-            <li 
-              key={getUniqueKey(payslip)}
-              onClick={() => onPayslipClick(payslip)}
-              className="payslip-item"
-            >
-              <div className="payslip-thumbnail">
-                <img 
-                  src={payslip.thumbnailUrl || payslip.imageUrl} 
-                  alt={payslip.title || '給与明細'} 
-                  className="thumbnail-image"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = payslip.imageUrl;
-                  }}
-                />
-              </div>
-              <div className="payslip-info">
-                <h3 className="payslip-title">{payslip.title || '無題のファイル'}</h3>
-                <p className="payslip-date">保存日: {safeParseDate(payslip.createdTime).toLocaleDateString('ja-JP')}</p>
-              </div>
-            </li>
-          ))}
+          {payslips.map(payslip => {
+            console.log('明細を表示:', payslip.title, payslip.id);
+            return (
+              <li 
+                key={getUniqueKey(payslip)}
+                onClick={() => onPayslipClick(payslip)}
+                className="payslip-item"
+              >
+                <div className="payslip-thumbnail">
+                  <img 
+                    src={payslip.imageUrl} 
+                    alt={payslip.title || '給与明細'} 
+                    className="thumbnail-image"
+                    loading="lazy"
+                    onError={(e) => {
+                      console.log('画像読み込みエラー:', payslip.title);
+                      e.target.onerror = null;
+                      // エラー時のフォールバック画像を設定
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7lj5HpgIHmlofnq6A8L3RleHQ+PC9zdmc+';
+                    }}
+                  />
+                </div>
+                <div className="payslip-info">
+                  <h3 className="payslip-title">{payslip.title || '無題のファイル'}</h3>
+                  <p className="payslip-date">
+                    保存日: {safeParseDate(payslip.createdTime).toLocaleDateString('ja-JP')}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
