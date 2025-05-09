@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, List, FileText, Upload, Search, ArrowLeft } from 'lucide-react';
 import './App.css'; // 通常のCSSファイルを使用
 
-/* global gapi */
+/* global gapi, google */
 
 // 環境変数からAPIキーとクライアントIDを取得
 const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
