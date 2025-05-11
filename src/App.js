@@ -1,6 +1,10 @@
 // src/App.js
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, List, FileText, Upload, Search, ArrowLeft } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import { format, setMonth, setYear } from 'date-fns';
+import { ja } from 'date-fns/locale';
+import "react-datepicker/dist/react-datepicker.css";
 import './App.css'; // 通常のCSSファイルを使用
 
 /* global gapi, google */
@@ -60,13 +64,12 @@ function App() {
   const [showToast, setShowToast] = useState(false);
   const videoRef = useRef(null);
   const [showDateModal, setShowDateModal] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [capturedImage, setCapturedImage] = useState(null);
   const [payslipFolderId, setPayslipFolderId] = useState(null);
 
   // 年の選択肢を生成（現在の年から過去9年分）
-  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+  const years = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
   // トースト通知を表示する関数
@@ -523,7 +526,9 @@ function App() {
     if (!capturedImage) return;
 
     try {
-      const fileName = `給与明細_${selectedYear}年${selectedMonth}月.jpg`;
+      const year = selectedDate.getFullYear();
+      const month = selectedDate.getMonth() + 1;
+      const fileName = `給与明細_${year}年${month}月.jpg`;
       const fileId = await uploadToGoogleDrive(capturedImage, fileName);
       
       const fileResponse = await gapi.client.drive.files.get({
@@ -536,7 +541,7 @@ function App() {
       const newPayslip = {
         id: fileId,
         title: fileData.name,
-        date: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
+        date: `${year}-${String(month).padStart(2, '0')}`,
         createdTime: fileData.createdTime,
         thumbnailUrl: thumbnailUrl,
         fileId: fileId,
@@ -723,25 +728,17 @@ function App() {
         <div className="modal-overlay">
           <div className="modal-content">
             <h2 className="modal-title">給与明細の年月を選択</h2>
-            <div className="date-selector">
-              <select 
-                className="date-select"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-              >
-                {years.map(year => (
-                  <option key={year} value={year}>{year}年</option>
-                ))}
-              </select>
-              <select 
-                className="date-select"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              >
-                {months.map(month => (
-                  <option key={month} value={month}>{month}月</option>
-                ))}
-              </select>
+            <div className="date-picker-container">
+              <DatePicker
+                selected={selectedDate}
+                onChange={date => setSelectedDate(date)}
+                dateFormat="yyyy年MM月"
+                showMonthYearPicker
+                locale={ja}
+                inline
+                minDate={new Date(new Date().getFullYear() - 9, 0, 1)}
+                maxDate={new Date()}
+              />
             </div>
             <div className="modal-buttons">
               <button 
