@@ -736,7 +736,7 @@ function App() {
                 showMonthYearPicker
                 locale={ja}
                 inline
-                minDate={new Date(new Date().getFullYear() - 9, 0, 1)}
+                minDate={new Date(new Date().getFullYear() - 40, 0, 1)}
                 maxDate={new Date()}
               />
             </div>
