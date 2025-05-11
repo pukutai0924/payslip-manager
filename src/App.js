@@ -152,9 +152,8 @@ function App() {
             const fileData = fileResponse.result;
             console.log('ファイルデータ:', fileData.name, fileData.mimeType);
             
-            // 認証トークンを含むURLを生成
-            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media&access_token=${accessToken}`;
-            const thumbnailUrl = `https://www.googleapis.com/drive/v3/files/${fileData.id}?alt=media&access_token=${accessToken}`;
+            // サムネイルURL（認証不要）を優先
+            const thumbnailUrl = fileData.thumbnailLink || null;
             
             // 日付を安全に処理
             const createdDate = safeParseDate(fileData.createdTime || new Date().toISOString());
@@ -164,7 +163,6 @@ function App() {
               title: fileData.name || '無題のファイル',
               date: createdDate.toISOString().slice(0, 7),
               createdTime: createdDate.toISOString(),
-              imageUrl: downloadUrl,
               thumbnailUrl: thumbnailUrl,
               fileId: fileData.id,
               webContentLink: fileData.webContentLink,
@@ -748,14 +746,13 @@ function ListView({ payslips, onPayslipClick, searchTerm, onSearchChange }) {
               >
                 <div className="payslip-thumbnail">
                   <img 
-                    src={payslip.imageUrl} 
-                    alt={payslip.title || '給与明細'} 
+                    src={payslip.thumbnailUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7lj5HpgIHmlofnq6A8L3RleHQ+PC9zdmc+'}
+                    alt={payslip.title || '給与明細'}
                     className="thumbnail-image"
                     loading="lazy"
                     onError={(e) => {
                       console.log('画像読み込みエラー:', payslip.title);
                       e.target.onerror = null;
-                      // エラー時のフォールバック画像を設定
                       e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7lj5HpgIHmlofnq6A8L3RleHQ+PC9zdmc+';
                     }}
                   />
@@ -785,12 +782,12 @@ function DetailView({ payslip }) {
         
         <div className="detail-image-container">
           <img 
-            src={payslip.imageUrl} 
-            alt={payslip.title || '給与明細'} 
+            src={payslip.thumbnailUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7lj5HpgIHmlofnq6A8L3RleHQ+PC9zdmc+'}
+            alt={payslip.title || '給与明細'}
             className="detail-image"
             onError={(e) => {
               e.target.onerror = null;
-              e.target.src = payslip.thumbnailUrl;
+              e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7lj5HpgIHmlofnq6A8L3RleHQ+PC9zdmc+';
             }}
           />
         </div>
