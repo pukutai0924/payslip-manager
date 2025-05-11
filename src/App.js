@@ -63,6 +63,7 @@ function App() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [capturedImage, setCapturedImage] = useState(null);
+  const [payslipFolderId, setPayslipFolderId] = useState(null);
 
   // 年の選択肢を生成
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -79,6 +80,43 @@ function App() {
     }, 100);
   };
 
+  // 給与明細フォルダの取得または作成
+  const getOrCreatePayslipFolder = async () => {
+    try {
+      // 既存のフォルダを検索
+      const response = await gapi.client.drive.files.list({
+        q: "name = '給与明細' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        fields: 'files(id, name)',
+        spaces: 'drive'
+      });
+
+      const folders = response.result.files;
+      
+      if (folders.length > 0) {
+        // 既存のフォルダが見つかった場合
+        console.log('既存の給与明細フォルダを使用:', folders[0].id);
+        return folders[0].id;
+      }
+
+      // フォルダが存在しない場合は新規作成
+      const folderMetadata = {
+        name: '給与明細',
+        mimeType: 'application/vnd.google-apps.folder'
+      };
+
+      const createResponse = await gapi.client.drive.files.create({
+        resource: folderMetadata,
+        fields: 'id'
+      });
+
+      console.log('新しい給与明細フォルダを作成:', createResponse.result.id);
+      return createResponse.result.id;
+    } catch (error) {
+      console.error('フォルダの取得/作成に失敗:', error);
+      throw error;
+    }
+  };
+
   // Google Driveから明細一覧を取得
   const fetchPayslips = async () => {
     if (isLoading) return;
@@ -91,14 +129,16 @@ function App() {
         console.log('認証が必要です...');
         await requestToken();
       } else {
-        // 認証済みの場合はトークンを設定
         gapi.client.setToken({ access_token: accessToken });
       }
 
+      // 給与明細フォルダのIDを取得
+      const folderId = await getOrCreatePayslipFolder();
+
       console.log('Drive APIにアクセス...');
-      // 給与明細のファイルを検索
+      // 給与明細フォルダ内のファイルを検索
       const response = await gapi.client.drive.files.list({
-        q: "name contains '給与明細' and mimeType contains 'image/' and trashed = false",
+        q: `'${folderId}' in parents and name contains '給与明細' and mimeType contains 'image/' and trashed = false`,
         fields: 'files(id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType)',
         orderBy: 'createdTime desc',
         spaces: 'drive',
@@ -173,7 +213,6 @@ function App() {
       console.error('明細一覧の取得に失敗しました:', error);
       if (error.status === 401 || error.status === 403) {
         clearAuth();
-        // 認証エラーの場合は再認証を試みる
         try {
           await requestToken();
           await fetchPayslips();
@@ -525,6 +564,9 @@ function App() {
         await requestToken();
       }
 
+      // 給与明細フォルダのIDを取得
+      const folderId = await getOrCreatePayslipFolder();
+
       const byteString = atob(imageData.split(',')[1]);
       const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
       const ab = new ArrayBuffer(byteString.length);
@@ -537,7 +579,7 @@ function App() {
       const metadata = {
         name: fileName,
         mimeType: mimeString,
-        parents: ['root'],
+        parents: [folderId], // フォルダIDを指定
       };
 
       const form = new FormData();
