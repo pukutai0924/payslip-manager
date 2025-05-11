@@ -65,8 +65,8 @@ function App() {
   const [capturedImage, setCapturedImage] = useState(null);
   const [payslipFolderId, setPayslipFolderId] = useState(null);
 
-  // 年の選択肢を生成
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
+  // 年の選択肢を生成（現在の年から過去9年分）
+  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
   // トースト通知を表示する関数
