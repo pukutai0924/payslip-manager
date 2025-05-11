@@ -10,9 +10,9 @@ const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
 // デバッグ用：環境変数の確認
-console.log('環境変数の確認:');
-console.log('API Key exists:', !!GOOGLE_API_KEY);
-console.log('Client ID exists:', !!GOOGLE_CLIENT_ID);
+//console.log('環境変数の確認:');
+//console.log('API Key exists:', !!GOOGLE_API_KEY);
+//console.log('Client ID exists:', !!GOOGLE_CLIENT_ID);
 
 // Google Drive APIのスコープ
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive';
@@ -41,7 +41,7 @@ const safeParseDate = (dateString) => {
 
 // メインアプリケーション
 function App() {
-  const [view, setView] = useState('home'); // home, camera, list, detail
+  const [view, setView] = useState('login');
   const [payslips, setPayslips] = useState([]);
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [isGoogleApiLoaded, setIsGoogleApiLoaded] = useState(false);
@@ -50,56 +50,33 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
   const [accessToken, setAccessToken] = useState(() => {
-    // ローカルストレージからトークンを復元
-    const savedToken = localStorage.getItem(AUTH_STORAGE_KEY);
-    return savedToken || null;
+    return localStorage.getItem(AUTH_STORAGE_KEY) || null;
   });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // ローカルストレージからトークンが存在する場合は認証済みとみなす
     return !!localStorage.getItem(AUTH_STORAGE_KEY);
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const videoRef = useRef(null);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [capturedImage, setCapturedImage] = useState(null);
 
-  // トークンの取得を要求
-  const requestToken = async () => {
-    if (!tokenClient) {
-      throw new Error('認証クライアントが初期化されていません');
-    }
+  // 年の選択肢を生成
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
-    if (isAuthenticated && accessToken) {
-      // 既存のトークンを設定
-      gapi.client.setToken({ access_token: accessToken });
-      return { access_token: accessToken };
-    }
-
-    return new Promise((resolve, reject) => {
-      tokenClient.callback = (response) => {
-        if (response.error) {
-          reject(response.error);
-        } else {
-          setAccessToken(response.access_token);
-          setIsAuthenticated(true);
-          localStorage.setItem(AUTH_STORAGE_KEY, response.access_token);
-          // 新しいトークンを設定
-          gapi.client.setToken({ access_token: response.access_token });
-          resolve(response);
-        }
-      };
-      tokenClient.requestAccessToken({
-        prompt: '',
-        ux_mode: 'redirect',
-        redirect_uri: window.location.origin
-      });
-    });
-  };
-
-  // 認証状態のクリア
-  const clearAuth = () => {
-    setAccessToken(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+  // トースト通知を表示する関数
+  const showToastMessage = () => {
+    setShowToast(false); // 一度非表示にして
+    setTimeout(() => {
+      setShowToast(true); // 再度表示
+      setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
+    }, 100);
   };
 
   // Google Driveから明細一覧を取得
@@ -209,6 +186,46 @@ function App() {
     }
   };
 
+  // トークンの取得を要求
+  const requestToken = async () => {
+    if (!tokenClient) {
+      throw new Error('認証クライアントが初期化されていません');
+    }
+
+    if (isAuthenticated && accessToken) {
+      // 既存のトークンを設定
+      gapi.client.setToken({ access_token: accessToken });
+      return { access_token: accessToken };
+    }
+
+    return new Promise((resolve, reject) => {
+      tokenClient.callback = (response) => {
+        if (response.error) {
+          reject(response.error);
+        } else {
+          setAccessToken(response.access_token);
+          setIsAuthenticated(true);
+          localStorage.setItem(AUTH_STORAGE_KEY, response.access_token);
+          // 新しいトークンを設定
+          gapi.client.setToken({ access_token: response.access_token });
+          resolve(response);
+        }
+      };
+      tokenClient.requestAccessToken({
+        prompt: '',
+        ux_mode: 'redirect',
+        redirect_uri: window.location.origin
+      });
+    });
+  };
+
+  // 認証状態のクリア
+  const clearAuth = () => {
+    setAccessToken(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
   // Google APIの初期化
   useEffect(() => {
     const initializeGoogleApi = async () => {
@@ -245,9 +262,9 @@ function App() {
                   setAccessToken(tokenResponse.access_token);
                   setIsAuthenticated(true);
                   localStorage.setItem(AUTH_STORAGE_KEY, tokenResponse.access_token);
-                  // 新しいトークンを設定
                   gapi.client.setToken({ access_token: tokenResponse.access_token });
                   setIsGoogleApiLoaded(true);
+                  setView('home');  // 認証成功時にホーム画面に遷移
                   fetchPayslips();
                 }
               },
@@ -263,19 +280,25 @@ function App() {
             // 保存されたトークンがある場合は明細一覧を取得
             if (isAuthenticated && accessToken) {
               console.log('保存されたトークンを使用して明細一覧を取得');
-              // 保存されたトークンを設定
               gapi.client.setToken({ access_token: accessToken });
+              setView('home');  // トークンがある場合はホーム画面に遷移
               await fetchPayslips();
+            } else {
+              setView('login');  // トークンがない場合はログイン画面に遷移
             }
           } catch (error) {
             console.error('Google APIの初期化に失敗しました:', error);
+            setView('login');  // エラー時はログイン画面に遷移
           } finally {
             setIsInitialized(true);
+            setIsLoading(false);
           }
         });
       } catch (error) {
         console.error('Google APIの初期化に失敗しました:', error);
         setIsInitialized(true);
+        setIsLoading(false);
+        setView('login');  // エラー時はログイン画面に遷移
       }
     };
 
@@ -284,28 +307,12 @@ function App() {
 
   // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    const loadPayslips = async () => {
-      if (view === 'list' && isInitialized) {
-        console.log('明細一覧画面を開きました');
-        try {
-          if (isAuthenticated && accessToken) {
-            console.log('認証済みの状態で明細一覧を取得');
-            // 認証トークンを設定
-            gapi.client.setToken({ access_token: accessToken });
-            await fetchPayslips();
-          } else {
-            console.log('認証が必要です');
-            await requestToken();
-            await fetchPayslips();
-          }
-        } catch (error) {
-          console.error('明細一覧の取得に失敗:', error);
-        }
-      }
-    };
-
-    loadPayslips();
-  }, [view, isInitialized]);
+    if (view === 'list' && isInitialized && isAuthenticated && accessToken) {
+      console.log('明細一覧画面を開きました');
+      gapi.client.setToken({ access_token: accessToken });
+      fetchPayslips();
+    }
+  }, [view, isInitialized, isAuthenticated, accessToken]);
 
   // カメラストリームのクリーンアップ
   useEffect(() => {
@@ -316,17 +323,208 @@ function App() {
     };
   }, [stream]);
 
+  // ログイン処理
+  const handleLogin = async () => {
+    try {
+      console.log('ログイン処理を開始...');
+      
+      if (!window.google) {
+        throw new Error('Google Identity Servicesが読み込まれていません');
+      }
+
+      // Google Identity Servicesを使用して認証
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: SCOPES,
+        callback: async (response) => {
+          if (response.error) {
+            console.error('認証エラー:', response.error);
+            alert('ログインに失敗しました。もう一度お試しください。');
+            return;
+          }
+
+          try {
+            console.log('認証成功、トークンを保存...');
+            const token = response.access_token;
+            localStorage.setItem(AUTH_STORAGE_KEY, token);
+            setAccessToken(token);
+            setIsAuthenticated(true);
+            setView('home');
+          } catch (error) {
+            console.error('トークン保存エラー:', error);
+            alert('ログインに失敗しました。もう一度お試しください。');
+          }
+        },
+        error_callback: (error) => {
+          console.error('認証エラー:', error);
+          alert('ログインに失敗しました。もう一度お試しください。');
+        }
+      });
+
+      console.log('認証を開始...');
+      client.requestAccessToken();
+    } catch (error) {
+      console.error('ログインエラー:', error);
+      alert('ログインに失敗しました。もう一度お試しください。\nエラー: ' + error.message);
+    }
+  };
+
+  // ログアウト処理
+  const handleLogout = async () => {
+    try {
+      showToastMessage();
+      
+      if (!gapi.auth2) {
+        console.log('Google APIが初期化されていません');
+        clearAuth();
+        setView('login');
+        return;
+      }
+
+      const googleAuth = gapi.auth2.getAuthInstance();
+      if (googleAuth) {
+        await googleAuth.signOut();
+      }
+      
+      clearAuth();
+      setView('login');
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+      clearAuth();
+      setView('login');
+      showToastMessage();
+    }
+  };
+
+  // ローディング中の表示
+  if (isLoading) {
+    return (
+      <div className="loading-container">
+        <div className="loading">Loading...</div>
+      </div>
+    );
+  }
+
+  // 未認証時の表示
+  if (!isAuthenticated) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <h1 className="login-title">給与明細管理アプリ</h1>
+          <p className="login-subtitle">Googleアカウントでログインして、給与明細を簡単に管理</p>
+          <button onClick={handleLogin} className="login-button">
+            <img 
+              src="https://www.google.com/favicon.ico" 
+              alt="Google" 
+              className="login-icon"
+            />
+            Googleでログイン
+          </button>
+        </div>
+        
+        <div className="login-features">
+          <div className="feature-item">
+            <div className="feature-icon">📱</div>
+            <h3 className="feature-title">簡単撮影</h3>
+            <p className="feature-description">
+              スマートフォンのカメラで給与明細を撮影するだけ
+            </p>
+          </div>
+          
+          <div className="feature-item">
+            <div className="feature-icon">☁️</div>
+            <h3 className="feature-title">クラウド保存</h3>
+            <p className="feature-description">
+              Googleドライブに自動保存で安全に管理
+            </p>
+          </div>
+          
+          <div className="feature-item">
+            <div className="feature-icon">🔍</div>
+            <h3 className="feature-title">簡単検索</h3>
+            <p className="feature-description">
+              過去の給与明細を素早く検索・閲覧
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 写真を撮影する関数
+  const capturePhoto = async () => {
+    if (videoRef.current) {
+      try {
+        const video = videoRef.current;
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        const frameSize = Math.floor(Math.min(videoWidth, videoHeight) * 0.8);
+        const sx = Math.floor((videoWidth - frameSize) / 2);
+        const sy = Math.floor((videoHeight - frameSize) / 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = frameSize;
+        canvas.height = frameSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(
+          video,
+          sx, sy, frameSize, frameSize,
+          0, 0, frameSize, frameSize
+        );
+        const imageUrl = canvas.toDataURL('image/jpeg');
+        setCapturedImage(imageUrl);
+        setShowDateModal(true);
+      } catch (error) {
+        alert('撮影に失敗しました: ' + error.message);
+      }
+    }
+  };
+
+  // 年月を選択して保存
+  const handleSaveWithDate = async () => {
+    if (!capturedImage) return;
+
+    try {
+      const fileName = `給与明細_${selectedYear}年${selectedMonth}月.jpg`;
+      const fileId = await uploadToGoogleDrive(capturedImage, fileName);
+      
+      const fileResponse = await gapi.client.drive.files.get({
+        fileId: fileId,
+        fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
+      });
+      
+      const fileData = fileResponse.result;
+      const thumbnailUrl = fileData.thumbnailLink || null;
+      const newPayslip = {
+        id: fileId,
+        title: fileData.name,
+        date: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
+        createdTime: fileData.createdTime,
+        thumbnailUrl: thumbnailUrl,
+        fileId: fileId,
+        webContentLink: fileData.webContentLink,
+        mimeType: fileData.mimeType
+      };
+      
+      setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
+      alert('給与明細を保存しました！');
+      setView('home');
+    } catch (error) {
+      alert('保存に失敗しました: ' + error.message);
+    } finally {
+      setShowDateModal(false);
+      setCapturedImage(null);
+    }
+  };
+
   // Google Driveにファイルをアップロード
-  const uploadToGoogleDrive = async (imageData) => {
+  const uploadToGoogleDrive = async (imageData, fileName) => {
     try {
       setIsUploading(true);
 
-      // トークンの取得
       if (!isAuthenticated) {
         await requestToken();
       }
 
-      // 画像データをBlobに変換
       const byteString = atob(imageData.split(',')[1]);
       const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
       const ab = new ArrayBuffer(byteString.length);
@@ -336,22 +534,16 @@ function App() {
       }
       const blob = new Blob([ab], { type: mimeString });
 
-      // ファイル名を生成
-      const fileName = `給与明細_${new Date().toISOString().slice(0, 10)}.jpg`;
-
-      // メタデータを設定
       const metadata = {
         name: fileName,
         mimeType: mimeString,
         parents: ['root'],
       };
 
-      // マルチパートリクエストを作成
       const form = new FormData();
       form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
       form.append('file', blob);
 
-      // ファイルをアップロード
       const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: {
@@ -365,10 +557,7 @@ function App() {
       }
 
       const result = await response.json();
-      
-      // アップロード後に明細一覧を更新
       await fetchPayslips();
-      
       return result.id;
     } catch (error) {
       console.error('Google Driveへのアップロードに失敗しました:', error);
@@ -376,58 +565,6 @@ function App() {
       throw error;
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  // 写真を撮影する関数
-  const capturePhoto = async () => {
-    if (videoRef.current) {
-      try {
-        const video = videoRef.current;
-        const videoWidth = video.videoWidth;
-        const videoHeight = video.videoHeight;
-        // 枠サイズ: プレビューの短辺の80%の正方形
-        const frameSize = Math.floor(Math.min(videoWidth, videoHeight) * 0.8);
-        // 枠の左上座標（中央に配置）
-        const sx = Math.floor((videoWidth - frameSize) / 2);
-        const sy = Math.floor((videoHeight - frameSize) / 2);
-        // canvasを枠サイズに
-        const canvas = document.createElement('canvas');
-        canvas.width = frameSize;
-        canvas.height = frameSize;
-        const ctx = canvas.getContext('2d');
-        // 枠の内側だけを切り出して描画
-        ctx.drawImage(
-          video,
-          sx, sy, frameSize, frameSize, // 元画像の切り出し範囲
-          0, 0, frameSize, frameSize    // canvasへの描画範囲
-        );
-        const imageUrl = canvas.toDataURL('image/jpeg');
-        // Google Driveにアップロード
-        const fileId = await uploadToGoogleDrive(imageUrl);
-        // アップロードしたファイルの情報を取得
-        const fileResponse = await gapi.client.drive.files.get({
-          fileId: fileId,
-          fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
-        });
-        const fileData = fileResponse.result;
-        const thumbnailUrl = fileData.thumbnailLink || null;
-        const newPayslip = {
-          id: fileId,
-          title: fileData.name,
-          date: new Date().toISOString().slice(0, 7),
-          createdTime: fileData.createdTime,
-          thumbnailUrl: thumbnailUrl,
-          fileId: fileId,
-          webContentLink: fileData.webContentLink,
-          mimeType: fileData.mimeType
-        };
-        setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
-        alert('給与明細を保存しました！');
-        setView('home');
-      } catch (error) {
-        alert('保存に失敗しました: ' + error.message);
-      }
     }
   };
 
@@ -465,6 +602,13 @@ function App() {
             {view === 'detail' && '給与明細詳細'}
           </h1>
           <div className="spacer"></div>
+          <button 
+            onClick={handleLogout}
+            className="logout-button"
+            title="ログアウト"
+          >
+            ログアウト
+          </button>
         </div>
       </header>
 
@@ -492,7 +636,6 @@ function App() {
           <ListView 
             payslips={filteredPayslips} 
             onPayslipClick={(payslip) => {
-              console.log('明細を選択:', payslip.title, payslip.id);
               setSelectedPayslip(payslip);
               setView('detail');
             }}
@@ -532,6 +675,71 @@ function App() {
           </button>
         </nav>
       </footer>
+
+      {/* 年月選択モーダル */}
+      {showDateModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">給与明細の年月を選択</h2>
+            <div className="date-selector">
+              <select 
+                className="date-select"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+              >
+                {years.map(year => (
+                  <option key={year} value={year}>{year}年</option>
+                ))}
+              </select>
+              <select 
+                className="date-select"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              >
+                {months.map(month => (
+                  <option key={month} value={month}>{month}月</option>
+                ))}
+              </select>
+            </div>
+            <div className="modal-buttons">
+              <button 
+                className="modal-button cancel-button"
+                onClick={() => {
+                  setShowDateModal(false);
+                  setCapturedImage(null);
+                }}
+              >
+                キャンセル
+              </button>
+              <button 
+                className="modal-button save-button"
+                onClick={handleSaveWithDate}
+                disabled={isUploading}
+              >
+                {isUploading ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* トースト通知 */}
+      <div className="toast-container">
+        {showToast && (
+          <div className="toast show">
+            <svg 
+              className="toast-icon" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2"
+            >
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+            ログアウトしました
+          </div>
+        )}
+      </div>
     </div>
   );
 }

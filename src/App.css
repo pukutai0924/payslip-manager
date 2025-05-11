@@ -461,3 +461,286 @@ body {
   font-size: 16px;
   margin-bottom: 20px;
 }
+
+.logout-button {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.logout-button:hover {
+  background-color: #d32f2f;
+}
+
+.logout-button:active {
+  background-color: #b71c1c;
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 20px;
+}
+
+.login-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.login-title {
+  font-size: 2rem;
+  color: #2c3e50;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.login-subtitle {
+  color: #7f8c8d;
+  margin-bottom: 32px;
+  font-size: 1.1rem;
+}
+
+.login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.login-button:hover {
+  background-color: #357abd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+}
+
+.login-button:active {
+  transform: translateY(0);
+}
+
+.login-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.login-features {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  width: 100%;
+  max-width: 800px;
+}
+
+.feature-item {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.feature-icon {
+  font-size: 2rem;
+  color: #4285f4;
+  margin-bottom: 12px;
+}
+
+.feature-title {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.feature-description {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .login-card {
+    padding: 24px;
+  }
+
+  .login-title {
+    font-size: 1.75rem;
+  }
+
+  .login-subtitle {
+    font-size: 1rem;
+  }
+
+  .login-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* トースト通知 */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.toast {
+  background-color: #333;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideUp 0.3s ease-out, fadeOut 0.3s ease-out 2.7s;
+  opacity: 0;
+}
+
+.toast.show {
+  opacity: 1;
+}
+
+.toast-icon {
+  width: 20px;
+  height: 20px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 100%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* 年月選択モーダル */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 24px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.date-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.date-select {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 1rem;
+  color: #2c3e50;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.modal-button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-button {
+  background-color: #e2e8f0;
+  color: #4a5568;
+}
+
+.cancel-button:hover {
+  background-color: #cbd5e0;
+}
+
+.save-button {
+  background-color: #2563eb;
+  color: white;
+}
+
+.save-button:hover {
+  background-color: #1d4ed8;
+}
