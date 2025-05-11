@@ -383,39 +383,45 @@ function App() {
   const capturePhoto = async () => {
     if (videoRef.current) {
       try {
+        const video = videoRef.current;
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        // 枠サイズ: プレビューの短辺の80%の正方形
+        const frameSize = Math.floor(Math.min(videoWidth, videoHeight) * 0.8);
+        // 枠の左上座標（中央に配置）
+        const sx = Math.floor((videoWidth - frameSize) / 2);
+        const sy = Math.floor((videoHeight - frameSize) / 2);
+        // canvasを枠サイズに
         const canvas = document.createElement('canvas');
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
+        canvas.width = frameSize;
+        canvas.height = frameSize;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoRef.current, 0, 0);
-        
+        // 枠の内側だけを切り出して描画
+        ctx.drawImage(
+          video,
+          sx, sy, frameSize, frameSize, // 元画像の切り出し範囲
+          0, 0, frameSize, frameSize    // canvasへの描画範囲
+        );
         const imageUrl = canvas.toDataURL('image/jpeg');
-        
         // Google Driveにアップロード
         const fileId = await uploadToGoogleDrive(imageUrl);
-        
         // アップロードしたファイルの情報を取得
         const fileResponse = await gapi.client.drive.files.get({
           fileId: fileId,
           fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
         });
-
         const fileData = fileResponse.result;
-        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${accessToken}`;
-        const thumbnailUrl = fileData.thumbnailLink ? `${fileData.thumbnailLink}&access_token=${accessToken}` : null;
-        
+        const thumbnailUrl = fileData.thumbnailLink || null;
         const newPayslip = {
           id: fileId,
           title: fileData.name,
           date: new Date().toISOString().slice(0, 7),
           createdTime: fileData.createdTime,
-          imageUrl: downloadUrl,
           thumbnailUrl: thumbnailUrl,
           fileId: fileId,
           webContentLink: fileData.webContentLink,
           mimeType: fileData.mimeType
         };
-        
         setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
         alert('給与明細を保存しました！');
         setView('home');
