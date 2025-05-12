@@ -567,7 +567,7 @@ function App() {
   };
 
   // Google Driveにファイルをアップロード
-  const uploadToGoogleDrive = async (imageData, fileName) => {
+  const uploadToGoogleDrive = async (fileData, fileName) => {
     try {
       setIsUploading(true);
 
@@ -578,19 +578,33 @@ function App() {
       // 給与明細フォルダのIDを取得
       const folderId = await getOrCreatePayslipFolder();
 
-      const byteString = atob(imageData.split(',')[1]);
-      const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
+      let blob;
+      let mimeType;
+
+      // データタイプの判定と処理
+      if (fileData instanceof Blob) {
+        // すでにBlobの場合はそのまま使用
+        blob = fileData;
+        mimeType = fileData.type;
+      } else if (typeof fileData === 'string' && fileData.startsWith('data:')) {
+        // Base64データの場合
+        const base64Data = fileData.split(',')[1];
+        mimeType = fileData.split(',')[0].split(':')[1].split(';')[0];
+        const byteString = atob(base64Data);
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        blob = new Blob([ab], { type: mimeType });
+      } else {
+        throw new Error('無効なファイルデータです');
       }
-      const blob = new Blob([ab], { type: mimeString });
 
       const metadata = {
         name: fileName,
-        mimeType: mimeString,
-        parents: [folderId], // フォルダIDを指定
+        mimeType: mimeType,
+        parents: [folderId],
       };
 
       const form = new FormData();
