@@ -357,14 +357,22 @@ function App() {
     }
   }, [view, isInitialized, isAuthenticated, accessToken]);
 
-  // カメラストリームのクリーンアップ
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [stream]);
+  // カメラストリームの停止処理
+  const stopCameraStream = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log('カメラストリームを停止:', track.label);
+      });
+      setStream(null);
+    }
+  };
+
+  // ホーム画面に戻る処理を修正
+  const handleBackToHome = () => {
+    stopCameraStream();
+    setView('home');
+  };
 
   // ログイン処理
   const handleLogin = async () => {
@@ -557,6 +565,9 @@ function App() {
       
       setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
       alert('給与明細をPDFと画像で保存しました！');
+      
+      // カメラストリームを停止してからホーム画面に戻る
+      stopCameraStream();
       setView('home');
     } catch (error) {
       alert('保存に失敗しました: ' + error.message);
@@ -650,13 +661,7 @@ function App() {
         <div className="header-content">
           {view !== 'home' && (
             <button 
-              onClick={() => {
-                if (stream) {
-                  stream.getTracks().forEach(track => track.stop());
-                  setStream(null);
-                }
-                setView('home');
-              }} 
+              onClick={handleBackToHome}
               className="back-button"
             >
               <ArrowLeft size={24} />
@@ -720,7 +725,7 @@ function App() {
       <footer className="app-footer">
         <nav className="footer-nav">
           <button 
-            onClick={() => setView('home')} 
+            onClick={handleBackToHome}
             className={`nav-button ${view === 'home' ? 'active' : ''}`}
           >
             <FileText size={24} />
