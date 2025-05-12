@@ -6,6 +6,7 @@ import { format, setMonth, setYear } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import "react-datepicker/dist/react-datepicker.css";
 import './App.css'; // 通常のCSSファイルを使用
+import PDFService from './services/PDFService';
 
 /* global gapi, google */
 
@@ -498,20 +499,11 @@ function App() {
     if (videoRef.current) {
       try {
         const video = videoRef.current;
-        const videoWidth = video.videoWidth;
-        const videoHeight = video.videoHeight;
-        const frameSize = Math.floor(Math.min(videoWidth, videoHeight) * 0.8);
-        const sx = Math.floor((videoWidth - frameSize) / 2);
-        const sy = Math.floor((videoHeight - frameSize) / 2);
         const canvas = document.createElement('canvas');
-        canvas.width = frameSize;
-        canvas.height = frameSize;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(
-          video,
-          sx, sy, frameSize, frameSize,
-          0, 0, frameSize, frameSize
-        );
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageUrl = canvas.toDataURL('image/jpeg');
         setCapturedImage(imageUrl);
         setShowDateModal(true);
@@ -528,29 +520,43 @@ function App() {
     try {
       const year = selectedDate.getFullYear();
       const month = selectedDate.getMonth() + 1;
-      const fileName = `給与明細_${year}年${month}月.jpg`;
-      const fileId = await uploadToGoogleDrive(capturedImage, fileName);
+      const baseFileName = `給与明細_${year}年${month}月`;
       
-      const fileResponse = await gapi.client.drive.files.get({
-        fileId: fileId,
-        fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
-      });
+      // PDFに変換
+      const pdfBlob = await PDFService.convertImageToPDF(capturedImage);
       
-      const fileData = fileResponse.result;
-      const thumbnailUrl = fileData.thumbnailLink || null;
+      // PDFをアップロード
+      const pdfFileId = await uploadToGoogleDrive(pdfBlob, `${baseFileName}.pdf`);
+      
+      // 元の画像もアップロード
+      const imageFileId = await uploadToGoogleDrive(capturedImage, `${baseFileName}.jpg`);
+      
+      // 両方のファイルの情報を取得
+      const [pdfFile, imageFile] = await Promise.all([
+        gapi.client.drive.files.get({
+          fileId: pdfFileId,
+          fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
+        }),
+        gapi.client.drive.files.get({
+          fileId: imageFileId,
+          fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
+        })
+      ]);
+      
       const newPayslip = {
-        id: fileId,
-        title: fileData.name,
+        id: pdfFileId,
+        title: pdfFile.result.name,
         date: `${year}-${String(month).padStart(2, '0')}`,
-        createdTime: fileData.createdTime,
-        thumbnailUrl: thumbnailUrl,
-        fileId: fileId,
-        webContentLink: fileData.webContentLink,
-        mimeType: fileData.mimeType
+        createdTime: pdfFile.result.createdTime,
+        thumbnailUrl: imageFile.result.thumbnailLink || null,
+        fileId: pdfFileId,
+        webContentLink: pdfFile.result.webContentLink,
+        mimeType: pdfFile.result.mimeType,
+        imageFileId: imageFileId
       };
       
       setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
-      alert('給与明細を保存しました！');
+      alert('給与明細をPDFと画像で保存しました！');
       setView('home');
     } catch (error) {
       alert('保存に失敗しました: ' + error.message);

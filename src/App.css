@@ -192,18 +192,6 @@ body {
   object-fit: cover;
 }
 
-.camera-frame {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80%;
-  height: 80%;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  border-radius: 8px;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-}
-
 .capture-button-container {
   padding: 20px;
   display: flex;
