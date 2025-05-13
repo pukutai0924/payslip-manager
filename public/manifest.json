@@ -1,6 +1,7 @@
 {
   "short_name": "給与明細管理",
   "name": "給与明細管理アプリ",
+  "description": "給与明細を撮影してGoogleドライブに保存し、簡単に管理できるアプリ",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,12 +11,14 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
@@ -23,17 +26,6 @@
   "theme_color": "#2563eb",
   "background_color": "#ffffff",
   "orientation": "portrait",
-  "description": "給与明細を撮影してGoogle Driveに保存、管理するためのアプリです。",
-  "screenshots": [
-    {
-      "src": "screenshot1.png",
-      "type": "image/png",
-      "sizes": "540x720"
-    },
-    {
-      "src": "screenshot2.png",
-      "type": "image/png",
-      "sizes": "540x720"
-    }
-  ]
+  "scope": "/",
+  "lang": "ja-JP"
 }
