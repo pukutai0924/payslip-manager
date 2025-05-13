@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://あなたのドメイン/sitemap.xml
+Sitemap: https://payslip-manager.vercel.app/sitemap.xml
