@@ -67,10 +67,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [capturedImage, setCapturedImage] = useState(null);
   const [payslipFolderId, setPayslipFolderId] = useState(null);
-
-  // 年の選択肢を生成（現在の年から過去9年分）
-  const years = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const [years, months] = useState([]);
 
   // トースト通知を表示する関数
   const showToastMessage = () => {
@@ -347,14 +344,21 @@ function App() {
     initializeGoogleApi();
   }, []);
 
-  // 明細一覧画面を開いたときに明細一覧を取得
   useEffect(() => {
-    if (view === 'list' && isInitialized && isAuthenticated && accessToken) {
-      console.log('明細一覧画面を開きました');
-      gapi.client.setToken({ access_token: accessToken });
+    if (isAuthenticated && accessToken) {
       fetchPayslips();
     }
-  }, [view, isInitialized, isAuthenticated, accessToken]);
+  }, [isAuthenticated, accessToken, fetchPayslips]);
+
+  useEffect(() => {
+    fetchPayslips();
+  }, [fetchPayslips]);
+
+  useEffect(() => {
+    if (stream) {
+      setStream(stream);
+    }
+  }, [stream, setStream]);
 
   // カメラストリームの停止処理
   const stopCameraStream = () => {
