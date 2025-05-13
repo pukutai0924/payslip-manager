@@ -160,4 +160,4 @@ class CameraService {
     }
   }
   
-  export default new CameraService();
+  export default new CameraService();                         

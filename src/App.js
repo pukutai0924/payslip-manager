@@ -271,17 +271,18 @@ function App() {
       try {
         console.log('Google APIの初期化を開始...');
         
-        await new Promise((resolve) => {
-          if (window.gapi) {
-            resolve();
-          } else {
+        // Google APIスクリプトの読み込み
+        if (!window.gapi) {
+          await new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://apis.google.com/js/api.js';
             script.onload = resolve;
+            script.onerror = reject;
             document.body.appendChild(script);
-          }
-        });
+          });
+        }
 
+        // Google APIクライアントの初期化
         await gapi.load('client', async () => {
           try {
             await gapi.client.init({
@@ -292,6 +293,16 @@ function App() {
             console.log('Drive APIの初期化が完了');
 
             // Token Clientの初期化
+            if (!window.google) {
+              await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://accounts.google.com/gsi/client';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
+              });
+            }
+
             const client = google.accounts.oauth2.initTokenClient({
               client_id: GOOGLE_CLIENT_ID,
               scope: SCOPES,
@@ -303,13 +314,10 @@ function App() {
                   localStorage.setItem(AUTH_STORAGE_KEY, tokenResponse.access_token);
                   gapi.client.setToken({ access_token: tokenResponse.access_token });
                   setIsGoogleApiLoaded(true);
-                  setView('home');  // 認証成功時にホーム画面に遷移
+                  setView('home');
                   fetchPayslips();
                 }
-              },
-              prompt: '',
-              ux_mode: 'redirect',
-              redirect_uri: window.location.origin
+              }
             });
 
             setTokenClient(client);
@@ -320,24 +328,22 @@ function App() {
             if (isAuthenticated && accessToken) {
               console.log('保存されたトークンを使用して明細一覧を取得');
               gapi.client.setToken({ access_token: accessToken });
-              setView('home');  // トークンがある場合はホーム画面に遷移
+              setView('home');
               await fetchPayslips();
             } else {
-              setView('login');  // トークンがない場合はログイン画面に遷移
+              setView('login');
             }
           } catch (error) {
             console.error('Google APIの初期化に失敗しました:', error);
-            setView('login');  // エラー時はログイン画面に遷移
-          } finally {
-            setIsInitialized(true);
-            setIsLoading(false);
+            setView('login');
           }
         });
       } catch (error) {
         console.error('Google APIの初期化に失敗しました:', error);
+        setView('login');
+      } finally {
         setIsInitialized(true);
         setIsLoading(false);
-        setView('login');  // エラー時はログイン画面に遷移
       }
     };
 
