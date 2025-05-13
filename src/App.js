@@ -6,7 +6,6 @@ import { format, setMonth, setYear } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import "react-datepicker/dist/react-datepicker.css";
 import './App.css'; // 通常のCSSファイルを使用
-import PDFService from './services/PDFService';
 
 /* global gapi, google */
 
@@ -528,43 +527,31 @@ function App() {
     try {
       const year = selectedDate.getFullYear();
       const month = selectedDate.getMonth() + 1;
-      const baseFileName = `給与明細_${year}年${month}月`;
+      const fileName = `給与明細_${year}年${month}月.jpg`;
       
-      // PDFに変換
-      const pdfBlob = await PDFService.convertImageToPDF(capturedImage);
+      // 画像をアップロード
+      const fileId = await uploadToGoogleDrive(capturedImage, fileName);
       
-      // PDFをアップロード
-      const pdfFileId = await uploadToGoogleDrive(pdfBlob, `${baseFileName}.pdf`);
+      // ファイルの情報を取得
+      const fileResponse = await gapi.client.drive.files.get({
+        fileId: fileId,
+        fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
+      });
       
-      // 元の画像もアップロード
-      const imageFileId = await uploadToGoogleDrive(capturedImage, `${baseFileName}.jpg`);
-      
-      // 両方のファイルの情報を取得
-      const [pdfFile, imageFile] = await Promise.all([
-        gapi.client.drive.files.get({
-          fileId: pdfFileId,
-          fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
-        }),
-        gapi.client.drive.files.get({
-          fileId: imageFileId,
-          fields: 'id, name, createdTime, webContentLink, thumbnailLink, imageMediaMetadata, mimeType'
-        })
-      ]);
-      
+      const fileData = fileResponse.result;
       const newPayslip = {
-        id: pdfFileId,
-        title: pdfFile.result.name,
+        id: fileId,
+        title: fileData.name,
         date: `${year}-${String(month).padStart(2, '0')}`,
-        createdTime: pdfFile.result.createdTime,
-        thumbnailUrl: imageFile.result.thumbnailLink || null,
-        fileId: pdfFileId,
-        webContentLink: pdfFile.result.webContentLink,
-        mimeType: pdfFile.result.mimeType,
-        imageFileId: imageFileId
+        createdTime: fileData.createdTime,
+        thumbnailUrl: fileData.thumbnailLink || null,
+        fileId: fileId,
+        webContentLink: fileData.webContentLink,
+        mimeType: fileData.mimeType
       };
       
       setPayslips(prevPayslips => [newPayslip, ...prevPayslips]);
-      alert('給与明細をPDFと画像で保存しました！');
+      alert('給与明細を保存しました！');
       
       // カメラストリームを停止してからホーム画面に戻る
       stopCameraStream();
