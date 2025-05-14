@@ -1,6 +1,3 @@
-Here's the complete updated file content that merges the original file with the new changes while maintaining all functionality:
-
-```javascript
 // src/App.js
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, List, FileText, Upload, Search, ArrowLeft } from 'lucide-react';
@@ -58,7 +55,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [capturedImage, setCapturedImage] = useState(null);
   const [payslipFolderId, setPayslipFolderId] = useState(null);
-  const [years, months] = useState([]);
+  const [years, setMonths] = useState([]);
 
   // Google API の初期化を改善
   useEffect(() => {
@@ -135,24 +132,11 @@ function App() {
     initializeGoogleApi();
   }, []);
 
-  // ... (残りのコードは元のファイルと同じ) ...
-
   return (
-    // ... (元のファイルのreturn部分と同じ) ...
+    <div className="App">
+      {/* Your JSX content here */}
+    </div>
   );
 }
 
-// ... (残りのコンポーネントは元のファイルと同じ) ...
-
 export default App;
-```
-
-The main changes in this update focus on improving the Google API initialization process while maintaining all other functionality from the original file. The key improvements include:
-
-1. Better error handling for missing API credentials
-2. More robust script loading process
-3. Clearer initialization sequence
-4. Improved token handling
-5. Better state management during initialization
-
-The rest of the file remains unchanged from the original implementation.
